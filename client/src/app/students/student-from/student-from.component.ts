@@ -1,0 +1,101 @@
+import { JsonPipe } from '@angular/common';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import {
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { StudentsService } from '../../services/students.service';
+import { Subscription } from 'rxjs';
+import { tick } from '@angular/core/testing';
+import { ToastrService } from 'ngx-toastr';
+
+@Component({
+  selector: 'app-student-from',
+  standalone: true,
+  imports: [ReactiveFormsModule, JsonPipe, RouterLink],
+  templateUrl: './student-from.component.html',
+  styleUrl: './student-from.component.css',
+})
+export class StudentFromComponent implements OnInit, OnDestroy {
+  form!: FormGroup;
+  studentformSubscription!: Subscription;
+  paramsSubscription!: Subscription;
+  studentService = inject(StudentsService);
+
+  isEdit = false;
+  id = 0;
+
+  constructor(
+    private fb: FormBuilder,
+    private activatedRouter: ActivatedRoute,
+    private router: Router,
+    private tosterService: ToastrService
+  ) {}
+  ngOnDestroy(): void {
+    if (this.studentformSubscription) {
+      this.studentformSubscription.unsubscribe();
+    }
+
+    if (this.paramsSubscription) {
+      this.paramsSubscription.unsubscribe();
+    }
+  }
+  onSubmit() {
+    if (this.isEdit) {
+      this.studentformSubscription = this.studentService
+        .addStudent(this.form.value)
+        .subscribe({
+          next: (response) => {
+            console.log(response);
+            this.tosterService.success('Student successfully added');
+            this.router.navigateByUrl('/students');
+          },
+          error: (err) => {
+            console.log(err);
+          },
+        });
+    } else {
+      this.studentService.editStudent(this.id, this.form.value).subscribe({
+        next: (value) => {
+          this.tosterService.success('Edited successfully');
+          this.router.navigateByUrl('/students');
+        },
+        error: (err) => {
+          this.tosterService.error('Unable to edit');
+        },
+      });
+    }
+  }
+
+  ngOnInit(): void {
+    this.paramsSubscription = this.activatedRouter.params.subscribe({
+      next: (response) => {
+        console.log(response['id']);
+        let id = response['id'];
+        this.id = id;
+        if (!id) return;
+        this.studentService.getStudentMethod(id).subscribe({
+          next: (response) => {
+            this.form.patchValue(response);
+            this.isEdit = true;
+          },
+          error: (err) => {
+            console.log(err);
+          },
+        });
+      },
+      error: (err) => {
+        console.log(err);
+      },
+    });
+    this.form = this.fb.group({
+      name: ['', Validators.required],
+      address: [],
+      phoneNumber: [],
+      email: ['', Validators.email],
+    });
+  }
+}
